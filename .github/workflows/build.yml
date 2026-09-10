@@ -13,7 +13,12 @@ permissions:
 
 jobs:
   build:
+    name: build (${{ matrix.rid }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
 
     steps:
       - uses: actions/checkout@v4
@@ -22,33 +27,82 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
+      - name: Compute version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $ver = "${{ github.ref }}" -replace '^refs/tags/v', ''
+          } else {
+            $ver = "0.0.0-ci"
+          }
+          Write-Host "VERSION=$ver"
+          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Publish (self-contained single file)
+        shell: pwsh
         run: >
           dotnet publish --configuration Release
+          -r ${{ matrix.rid }}
+          -p:Version=$env:VERSION
           -p:PublishSingleFile=true
           -p:SelfContained=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
           -o publish
 
-      - name: Package
-        run: Compress-Archive -Path publish/MiniPlayer.exe -DestinationPath MiniPlayer-win-x64.zip
+      - name: Sign executable
         shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.CODE_SIGNING_PFX }}
+          PFX_PASSWORD: ${{ secrets.CODE_SIGNING_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64)) {
+            Write-Host "No code-signing certificate configured; skipping signature."
+            exit 0
+          }
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe not found" }
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          & $signtool sign /fd SHA256 /f $pfx /p $env:PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 "publish\MiniPlayer.exe"
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path publish/MiniPlayer.exe -DestinationPath MiniPlayer-${{ matrix.rid }}.zip
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-FileHash MiniPlayer-${{ matrix.rid }}.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  MiniPlayer-${{ matrix.rid }}.zip" } |
+            Set-Content MiniPlayer-${{ matrix.rid }}.zip.sha256
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MiniPlayer-win-x64
-          path: MiniPlayer-win-x64.zip
+          name: MiniPlayer-${{ matrix.rid }}
+          path: |
+            MiniPlayer-${{ matrix.rid }}.zip
+            MiniPlayer-${{ matrix.rid }}.zip.sha256
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  release:
+    name: attach to release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          files: MiniPlayer-win-x64.zip
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

@@ -19,17 +19,28 @@ its leading edge.
 - Click the bar (or the middle button) to play/pause
 - Prev / play-pause / next buttons fade in on hover
 - Mouse wheel over the bar = previous / next track
-- Right-click → **Start with Windows** (per-user `HKCU\...\Run` entry), or **Exit**
+- Right-click for:
+  - **Position** → *Above taskbar* (floats in the gap just outside it) or
+    *On taskbar* (overlaps the taskbar near its leading corner)
+  - **Draggable** → left-drag the bar anywhere; the spot is remembered
+  - **Start with Windows** (per-user `HKCU\...\Run` entry)
+  - **Exit**
 - Follows the taskbar across resolution / DPI / taskbar-position changes
 - Never takes focus (`WS_EX_NOACTIVATE`), hidden from Alt-Tab, not in the taskbar
 - Collapses to nothing when no media session is active
 
+## Settings
+
+Menu choices persist to `%APPDATA%\WindowsMiniPlayer\settings.json`
+(position mode, draggable on/off, last dragged coordinates). Delete the file to
+reset to defaults.
+
 ## Privacy
 
 Runs entirely locally. It reads the current media-session metadata through the
-Windows `GlobalSystemMediaTransportControlsSessionManager` API and writes one
-optional registry value (the "Start with Windows" entry). **No network calls, no
-telemetry, no analytics.**
+Windows `GlobalSystemMediaTransportControlsSessionManager` API and writes a
+settings file plus one optional registry value (the "Start with Windows" entry).
+**No network calls, no telemetry, no analytics.**
 
 ## Requirements
 
@@ -66,8 +77,9 @@ For a much smaller binary that needs the .NET Desktop Runtime 8 installed, drop
 | [`Services/MediaService.cs`](Services/MediaService.cs) | Wraps `GlobalSystemMediaTransportControlsSessionManager`; raises a `NowPlaying` snapshot on any track/playback change (debounced) |
 | [`Services/TaskbarTracker.cs`](Services/TaskbarTracker.cs) | Reads the taskbar rect via `SHAppBarMessage(ABM_GETTASKBARPOS)`, positions the window in physical pixels with `SetWindowPos`, re-checks on a timer + display-change events |
 | [`Services/StartupManager.cs`](Services/StartupManager.cs) | Toggles the `HKCU` Run-key entry |
+| [`Services/Settings.cs`](Services/Settings.cs) | Loads/saves `settings.json` (position mode, draggable, custom coords) |
 | [`Interop/NativeMethods.cs`](Interop/NativeMethods.cs) | P/Invoke declarations |
-| [`MainWindow.xaml`](MainWindow.xaml) / [`.cs`](MainWindow.xaml.cs) | The bar UI and event wiring |
+| [`MainWindow.xaml`](MainWindow.xaml) / [`.cs`](MainWindow.xaml.cs) | The bar UI, menu, and drag handling |
 
 ## Known limitations
 
@@ -75,8 +87,8 @@ For a much smaller binary that needs the .NET Desktop Runtime 8 installed, drop
 - When the taskbar is set to auto-hide, the bar stays at the taskbar's normal
   position rather than sliding with it
 - Fullscreen apps (games, video) cover the bar — expected for a topmost window
-- Tuning constants (`BarWidth`, `BarHeight`, `LeadingMargin`) live in
-  [`TaskbarTracker.cs`](Services/TaskbarTracker.cs); there is no settings UI yet
+- Bar size (`BarWidth`, `BarHeight`) is still a constant in
+  [`TaskbarTracker.cs`](Services/TaskbarTracker.cs); only position is in the menu
 
 ## Why not *inside* the taskbar?
 

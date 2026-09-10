@@ -50,11 +50,23 @@
             BorderBrush="#26FFFFFF"
             BorderThickness="1"
             Padding="6,5"
+            MouseLeftButtonDown="Root_MouseLeftButtonDown"
+            MouseMove="Root_MouseMove"
             MouseLeftButtonUp="Root_MouseLeftButtonUp"
+            LostMouseCapture="Root_LostMouseCapture"
             MouseWheel="Root_MouseWheel">
 
         <Border.ContextMenu>
             <ContextMenu>
+                <MenuItem Header="Position">
+                    <MenuItem x:Name="PosAboveItem" Header="Above taskbar"
+                              IsCheckable="True" Click="PosAbove_Click" />
+                    <MenuItem x:Name="PosOnItem" Header="On taskbar"
+                              IsCheckable="True" Click="PosOn_Click" />
+                </MenuItem>
+                <MenuItem x:Name="DraggableItem" Header="Draggable"
+                          IsCheckable="True" Click="Draggable_Click" />
+                <Separator />
                 <MenuItem x:Name="StartupItem" Header="Start with Windows"
                           IsCheckable="True" Click="StartupItem_Click" />
                 <Separator />

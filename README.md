@@ -50,6 +50,9 @@ settings file plus one optional registry value (the "Start with Windows" entry).
 ## Build & run
 
 ```powershell
+cd WinMiniPlayer
+dotnet nuget locals all --clear
+dotnet restore
 dotnet build
 dotnet run
 ```

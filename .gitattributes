@@ -1,0 +1,8 @@
+# Normalize line endings: LF in the repo, checked out native on Windows
+* text=auto eol=lf
+
+*.sln     text eol=crlf
+*.csproj  text eol=crlf
+
+*.png binary
+*.ico binary

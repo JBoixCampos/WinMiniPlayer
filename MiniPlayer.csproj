@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>MiniPlayer</RootNamespace>
+    <AssemblyName>MiniPlayer</AssemblyName>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <Product>Windows MiniPlayer</Product>
+    <Authors>Javier Boix</Authors>
+    <Description>A small always-on-top bar that shows the current Windows media session (Spotify, browsers, players) above the taskbar.</Description>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+</Project>

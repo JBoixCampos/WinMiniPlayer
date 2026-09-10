@@ -60,16 +60,30 @@ dotnet run
 ### Self-contained single file
 
 ```powershell
-dotnet publish -c Release -p:PublishSingleFile=true -p:SelfContained=true `
+dotnet publish -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true `
   -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
 ```
 
-The result is one `MiniPlayer.exe` under
-`bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\`. Copy it anywhere and
+Use `-r win-arm64` for ARM64 (Snapdragon) devices. The result is one
+`MiniPlayer.exe` under
+`bin\Release\net8.0-windows10.0.19041.0\<rid>\publish\`. Copy it anywhere and
 make a shortcut, or use the right-click **Start with Windows** toggle.
 
 For a much smaller binary that needs the .NET Desktop Runtime 8 installed, drop
 `-p:SelfContained=true` (and the compression flag).
+
+### Releases & code signing
+
+On a `v*` tag the CI builds self-contained single-file zips for `win-x64` and
+`win-arm64`, generates a `SHA256SUMS` file for each, and attaches them to a
+GitHub Release. The version stamped into the exe comes from the tag name.
+
+To avoid the "Windows protected your PC" SmartScreen prompt, configure a
+code-signing certificate as two repository secrets (base64-encoded `.pfx` and
+its password). The signing step is skipped automatically when they are absent:
+
+- `CODE_SIGNING_PFX`
+- `CODE_SIGNING_PASSWORD`
 
 ## How it works
 

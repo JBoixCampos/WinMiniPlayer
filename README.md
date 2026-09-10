@@ -11,8 +11,6 @@ its leading edge.
 
 ![Windows MiniPlayer sitting above the taskbar](docs/screenshot.png)
 
-<sub>Preview mockup — swap in a real screenshot when you publish.</sub>
-
 ## Features
 
 - Album art + title + artist, updated live as the track changes

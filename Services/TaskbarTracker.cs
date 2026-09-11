@@ -34,10 +34,14 @@ public sealed class TaskbarTracker : IDisposable
     /// <summary>Target location in physical screen pixels; used only when <see cref="Position"/> is Custom.</summary>
     public (int X, int Y)? CustomLocation { get; set; }
 
+    /// <summary>Monitor device name (from a <see cref="NativeMethods.TaskbarInfo"/>) to dock to, or null for the primary.</summary>
+    public string? MonitorId { get; set; }
+
     public TaskbarTracker(Window window)
     {
         _window = window;
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        // Fast enough to follow an auto-hide taskbar's slide animation smoothly.
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _timer.Tick += (_, _) => Reposition();
     }
 
@@ -71,6 +75,39 @@ public sealed class TaskbarTracker : IDisposable
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) => Reposition();
 
+    /// <summary>Picks the taskbar matching <see cref="MonitorId"/> (or the primary), falling back
+    /// to the legacy SHAppBarMessage-only lookup if no taskbar window could be found at all.</summary>
+    private bool TryResolveTaskbar(out NativeMethods.RECT rect, out int edge)
+    {
+        if (NativeMethods.TryGetAllTaskbars(out var taskbars) && taskbars.Count > 0)
+        {
+            var chosen = taskbars[0];
+            bool found = false;
+
+            if (MonitorId is not null)
+            {
+                foreach (var t in taskbars)
+                {
+                    if (t.MonitorDevice == MonitorId) { chosen = t; found = true; break; }
+                }
+            }
+
+            if (!found)
+            {
+                foreach (var t in taskbars)
+                {
+                    if (t.IsPrimary) { chosen = t; break; }
+                }
+            }
+
+            rect = chosen.Rect;
+            edge = chosen.Edge;
+            return true;
+        }
+
+        return NativeMethods.TryGetTaskbar(out rect, out edge);
+    }
+
     public void Reposition()
     {
         if (_hwnd == IntPtr.Zero || _dragging) return;
@@ -79,7 +116,7 @@ public sealed class TaskbarTracker : IDisposable
         double scale = dpi == 0 ? 1.0 : dpi / 96.0;
 
         bool onBar = Position == BarPosition.OnTaskbar;
-        bool hasTaskbar = NativeMethods.TryGetTaskbar(out var tb, out int edge);
+        bool hasTaskbar = TryResolveTaskbar(out var tb, out int edge);
 
         int w = (int)Math.Round(BarWidth * scale);
         int h = (int)Math.Round(BarHeight * scale);

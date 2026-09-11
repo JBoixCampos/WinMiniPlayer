@@ -1,4 +1,5 @@
 using System.Windows;
+using MiniPlayer.Services;
 
 namespace MiniPlayer;
 
@@ -9,6 +10,7 @@ public partial class App : Application
     private Mutex? _singleInstance;
     private bool _ownsMutex;
     private MainWindow? _window;
+    private TrayService? _tray;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -23,11 +25,13 @@ public partial class App : Application
         base.OnStartup(e);
 
         _window = new MainWindow();
+        _tray = new TrayService(_window);
         _window.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _tray?.Dispose();
         _window?.Dispose();
 
         if (_ownsMutex)

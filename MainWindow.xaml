@@ -14,10 +14,21 @@
         TextOptions.TextFormattingMode="Display">
 
     <Window.Resources>
+        <!-- Theme palette: default values are the dark theme; MainWindow.xaml.cs swaps
+             these entries in code when the effective theme changes (system/light/dark). -->
+        <SolidColorBrush x:Key="BarBackgroundBrush" Color="#E61F1F1F" />
+        <SolidColorBrush x:Key="BarBorderBrush" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="TitleForegroundBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="ArtistForegroundBrush" Color="#9EFFFFFF" />
+        <SolidColorBrush x:Key="ArtworkPlaceholderBrush" Color="#22FFFFFF" />
+        <SolidColorBrush x:Key="TransportForegroundBrush" Color="#F2FFFFFF" />
+        <SolidColorBrush x:Key="TransportHoverBrush" Color="#28FFFFFF" />
+        <SolidColorBrush x:Key="TransportPressedBrush" Color="#40FFFFFF" />
+
         <Style x:Key="TransportButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="#F2FFFFFF" />
+            <Setter Property="Foreground" Value="{DynamicResource TransportForegroundBrush}" />
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Width" Value="26" />
@@ -32,10 +43,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#28FFFFFF" />
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource TransportHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#40FFFFFF" />
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource TransportPressedBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -46,8 +57,8 @@
 
     <Border x:Name="Root"
             CornerRadius="10"
-            Background="#E61F1F1F"
-            BorderBrush="#26FFFFFF"
+            Background="{DynamicResource BarBackgroundBrush}"
+            BorderBrush="{DynamicResource BarBorderBrush}"
             BorderThickness="1"
             Padding="6,5"
             MouseLeftButtonDown="Root_MouseLeftButtonDown"
@@ -57,12 +68,29 @@
             MouseWheel="Root_MouseWheel">
 
         <Border.ContextMenu>
-            <ContextMenu>
+            <ContextMenu Opened="ContextMenu_Opened">
+                <MenuItem x:Name="MonitorMenu" Header="Monitor" Visibility="Collapsed" />
                 <MenuItem Header="Position">
                     <MenuItem x:Name="PosAboveItem" Header="Above taskbar"
                               IsCheckable="True" Click="PosAbove_Click" />
                     <MenuItem x:Name="PosOnItem" Header="On taskbar"
                               IsCheckable="True" Click="PosOn_Click" />
+                </MenuItem>
+                <MenuItem Header="Size">
+                    <MenuItem x:Name="SizeCompactItem" Header="Compact"
+                              IsCheckable="True" Click="SizeCompact_Click" />
+                    <MenuItem x:Name="SizeDefaultItem" Header="Default"
+                              IsCheckable="True" Click="SizeDefault_Click" />
+                    <MenuItem x:Name="SizeLargeItem" Header="Large"
+                              IsCheckable="True" Click="SizeLarge_Click" />
+                </MenuItem>
+                <MenuItem Header="Theme">
+                    <MenuItem x:Name="ThemeSystemItem" Header="Match system"
+                              IsCheckable="True" Click="ThemeSystem_Click" />
+                    <MenuItem x:Name="ThemeLightItem" Header="Light"
+                              IsCheckable="True" Click="ThemeLight_Click" />
+                    <MenuItem x:Name="ThemeDarkItem" Header="Dark"
+                              IsCheckable="True" Click="ThemeDark_Click" />
                 </MenuItem>
                 <MenuItem x:Name="DraggableItem" Header="Draggable"
                           IsCheckable="True" Click="Draggable_Click" />
@@ -84,14 +112,14 @@
             <!-- Artwork (ImageBrush on a rounded Border clips to the corner radius) -->
             <Border x:Name="ArtHost" Grid.Column="0"
                     Width="32" Height="32" CornerRadius="6"
-                    Background="#22FFFFFF" VerticalAlignment="Center" />
+                    Background="{DynamicResource ArtworkPlaceholderBrush}" VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,6,0">
                 <TextBlock x:Name="TitleText"
-                           Foreground="#FFFFFFFF" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TitleForegroundBrush}" FontSize="12" FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 <TextBlock x:Name="ArtistText"
-                           Foreground="#9EFFFFFF" FontSize="11"
+                           Foreground="{DynamicResource ArtistForegroundBrush}" FontSize="11"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,1,0,0" />
             </StackPanel>
 

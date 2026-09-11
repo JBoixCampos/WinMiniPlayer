@@ -18,20 +18,28 @@ its leading edge.
 - Prev / play-pause / next buttons fade in on hover
 - Mouse wheel over the bar = previous / next track
 - Right-click for:
+  - **Monitor** → pick which display's taskbar to dock to (only shown when more
+    than one taskbar is detected)
   - **Position** → *Above taskbar* (floats in the gap just outside it) or
     *On taskbar* (overlaps the taskbar near its leading corner)
+  - **Size** → *Compact* / *Default* / *Large* bar presets
+  - **Theme** → *Match system* / *Light* / *Dark*
   - **Draggable** → left-drag the bar anywhere; the spot is remembered
   - **Start with Windows** (per-user `HKCU\...\Run` entry)
   - **Exit**
-- Follows the taskbar across resolution / DPI / taskbar-position changes
+- Follows the taskbar across resolution / DPI / taskbar-position changes, on
+  whichever monitor you pick — including auto-hidden taskbars, which it tracks
+  in real time as they slide in and out
 - Never takes focus (`WS_EX_NOACTIVATE`), hidden from Alt-Tab, not in the taskbar
 - Collapses to nothing when no media session is active
+- A tray icon gives access to the same menu (plus a **Reset position** recovery
+  action) even while the bar itself is collapsed or has been dragged off-screen
 
 ## Settings
 
 Menu choices persist to `%APPDATA%\WindowsMiniPlayer\settings.json`
-(position mode, draggable on/off, last dragged coordinates). Delete the file to
-reset to defaults.
+(position mode, monitor, size, theme, draggable on/off, last dragged
+coordinates). Delete the file to reset to defaults.
 
 **"Start with Windows" writes the *current* exe's path** to the registry. If you
 run it straight from `bin\Debug\...` or `bin\Release\...`, that path shifts
@@ -104,20 +112,19 @@ its password). The signing step is skipped automatically when they are absent:
 | File | Role |
 | --- | --- |
 | [`Services/MediaService.cs`](Services/MediaService.cs) | Wraps `GlobalSystemMediaTransportControlsSessionManager`; raises a `NowPlaying` snapshot on any track/playback change (debounced) |
-| [`Services/TaskbarTracker.cs`](Services/TaskbarTracker.cs) | Reads the taskbar rect via `SHAppBarMessage(ABM_GETTASKBARPOS)`, positions the window in physical pixels with `SetWindowPos`, re-checks on a timer + display-change events |
+| [`Services/TaskbarTracker.cs`](Services/TaskbarTracker.cs) | Resolves the taskbar for the selected monitor via `NativeMethods.TryGetAllTaskbars`, positions the window in physical pixels with `SetWindowPos`, re-checks every 200ms (fast enough to follow an auto-hide slide) + on display-change events |
+| [`Services/ThemeService.cs`](Services/ThemeService.cs) | Reads the taskbar's light/dark registry setting and raises a change event when it flips |
+| [`Services/TrayService.cs`](Services/TrayService.cs) | The notification-area icon and its menu (`ITrayHost` drives it from the same state as the bar's own menu) |
 | [`Services/StartupManager.cs`](Services/StartupManager.cs) | Toggles the `HKCU` Run-key entry |
-| [`Services/Settings.cs`](Services/Settings.cs) | Loads/saves `settings.json` (position mode, draggable, custom coords) |
-| [`Interop/NativeMethods.cs`](Interop/NativeMethods.cs) | P/Invoke declarations |
+| [`Services/Settings.cs`](Services/Settings.cs) | Loads/saves `settings.json` (position, monitor, size, theme, draggable, custom coords) |
+| [`Interop/NativeMethods.cs`](Interop/NativeMethods.cs) | P/Invoke declarations, including primary + secondary-monitor taskbar discovery |
 | [`MainWindow.xaml`](MainWindow.xaml) / [`.cs`](MainWindow.xaml.cs) | The bar UI, menu, and drag handling |
 
 ## Known limitations
 
-- Docks to the **primary** taskbar only; secondary-monitor taskbars are ignored
-- When the taskbar is set to auto-hide, the bar stays at the taskbar's normal
-  position rather than sliding with it
 - Fullscreen apps (games, video) cover the bar — expected for a topmost window
-- Bar size (`BarWidth`, `BarHeight`) is still a constant in
-  [`TaskbarTracker.cs`](Services/TaskbarTracker.cs); only position is in the menu
+- Bar size only has three presets (Compact/Default/Large) in the menu; exact
+  pixel dimensions still require editing `Settings.cs`'s defaults
 
 ## Why not *inside* the taskbar?
 

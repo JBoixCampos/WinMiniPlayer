@@ -1,13 +1,15 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using MiniPlayer.Interop;
 using MiniPlayer.Models;
 using MiniPlayer.Services;
 
 namespace MiniPlayer;
 
-public partial class MainWindow : Window, IDisposable
+public partial class MainWindow : Window, IDisposable, ITrayHost
 {
     // Segoe Fluent Icons glyphs
     private const string GlyphPlay = "";
@@ -15,26 +17,35 @@ public partial class MainWindow : Window, IDisposable
 
     private const double DragThreshold = 4.0;
 
+    // Heights have a floor around 42 (32px artwork + 5+5 padding) below which the artwork clips.
+    private static readonly (double Width, double Height) SizeCompact = (250, 42);
+    private static readonly (double Width, double Height) SizeDefault = (300, 44);
+    private static readonly (double Width, double Height) SizeLarge = (360, 52);
+
     private readonly MediaService _media = new();
     private readonly TaskbarTracker _tracker;
-    private readonly Brush _artworkPlaceholder;
+    private readonly ThemeService _theme = new();
     private readonly Settings _settings = Settings.Load();
 
     private bool _dragArmed;
     private bool _didDrag;
     private Point _dragOriginScreen;
+    private NowPlaying? _current;
 
     public MainWindow()
     {
         InitializeComponent();
-        _artworkPlaceholder = ArtHost.Background;
         _tracker = new TaskbarTracker(this);
         _media.Changed += OnMediaChanged;
+        _theme.Changed += OnSystemThemeChanged;
         Loaded += OnLoaded;
 
         DraggableItem.IsChecked = _settings.Draggable;
         SyncPositionMenu();
+        SyncSizeMenu();
+        SyncThemeMenu();
         UpdateDragCursor();
+        ApplyTheme();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -45,6 +56,9 @@ public partial class MainWindow : Window, IDisposable
         _tracker.CustomLocation = _settings.Position == BarPosition.Custom
             ? (_settings.CustomX, _settings.CustomY)
             : null;
+        _tracker.BarWidth = _settings.BarWidth;
+        _tracker.BarHeight = _settings.BarHeight;
+        _tracker.MonitorId = _settings.MonitorId;
         _tracker.Start();
     }
 
@@ -67,6 +81,8 @@ public partial class MainWindow : Window, IDisposable
 
     private void Render(NowPlaying? snapshot)
     {
+        _current = snapshot;
+
         if (snapshot is null || !snapshot.HasText)
         {
             Root.Visibility = Visibility.Collapsed;
@@ -82,7 +98,7 @@ public partial class MainWindow : Window, IDisposable
             : Visibility.Visible;
 
         ArtHost.Background = snapshot.Artwork is null
-            ? _artworkPlaceholder
+            ? (Brush)FindResource("ArtworkPlaceholderBrush")
             : new ImageBrush(snapshot.Artwork) { Stretch = Stretch.UniformToFill };
 
         PlayPauseGlyph.Text = snapshot.IsPlaying ? GlyphPause : GlyphPlay;
@@ -168,10 +184,125 @@ public partial class MainWindow : Window, IDisposable
         SyncPositionMenu();
     }
 
+    private void ContextMenu_Opened(object sender, RoutedEventArgs e) => RebuildMonitorMenu();
+
+    private void RebuildMonitorMenu()
+    {
+        MonitorMenu.Items.Clear();
+
+        if (!NativeMethods.TryGetAllTaskbars(out var taskbars) || taskbars.Count <= 1)
+        {
+            MonitorMenu.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        MonitorMenu.Visibility = Visibility.Visible;
+        int number = 1;
+        foreach (var t in taskbars)
+        {
+            string label = t.IsPrimary ? "Primary display" : $"Display {++number}";
+            string? id = t.IsPrimary ? null : t.MonitorDevice;
+
+            var item = new MenuItem
+            {
+                Header = label,
+                IsCheckable = true,
+                IsChecked = string.Equals(_settings.MonitorId, id, StringComparison.Ordinal),
+            };
+            item.Click += (_, _) => SetMonitor(id);
+            MonitorMenu.Items.Add(item);
+        }
+    }
+
+    private void SetMonitor(string? monitorId)
+    {
+        _settings.MonitorId = monitorId;
+        _settings.Save();
+        _tracker.MonitorId = monitorId;
+        _tracker.Reposition();
+    }
+
     private void SyncPositionMenu()
     {
         PosAboveItem.IsChecked = _settings.Position == BarPosition.AboveTaskbar;
         PosOnItem.IsChecked = _settings.Position == BarPosition.OnTaskbar;
+    }
+
+    private void SizeCompact_Click(object sender, RoutedEventArgs e) => SetSize(SizeCompact);
+    private void SizeDefault_Click(object sender, RoutedEventArgs e) => SetSize(SizeDefault);
+    private void SizeLarge_Click(object sender, RoutedEventArgs e) => SetSize(SizeLarge);
+
+    private void SetSize((double Width, double Height) size)
+    {
+        _settings.BarWidth = size.Width;
+        _settings.BarHeight = size.Height;
+        _settings.Save();
+        _tracker.BarWidth = size.Width;
+        _tracker.BarHeight = size.Height;
+        _tracker.Reposition();
+        SyncSizeMenu();
+    }
+
+    private void SyncSizeMenu()
+    {
+        SizeCompactItem.IsChecked = Matches(SizeCompact);
+        SizeDefaultItem.IsChecked = Matches(SizeDefault);
+        SizeLargeItem.IsChecked = Matches(SizeLarge);
+
+        bool Matches((double Width, double Height) size) =>
+            Math.Abs(_settings.BarWidth - size.Width) < 0.5 && Math.Abs(_settings.BarHeight - size.Height) < 0.5;
+    }
+
+    private void ThemeSystem_Click(object sender, RoutedEventArgs e) => SetThemeMode(ThemeMode.System);
+    private void ThemeLight_Click(object sender, RoutedEventArgs e) => SetThemeMode(ThemeMode.Light);
+    private void ThemeDark_Click(object sender, RoutedEventArgs e) => SetThemeMode(ThemeMode.Dark);
+
+    private void SetThemeMode(ThemeMode mode)
+    {
+        _settings.ThemeMode = mode;
+        _settings.Save();
+        SyncThemeMenu();
+        ApplyTheme();
+    }
+
+    private void SyncThemeMenu()
+    {
+        ThemeSystemItem.IsChecked = _settings.ThemeMode == ThemeMode.System;
+        ThemeLightItem.IsChecked = _settings.ThemeMode == ThemeMode.Light;
+        ThemeDarkItem.IsChecked = _settings.ThemeMode == ThemeMode.Dark;
+    }
+
+    private void OnSystemThemeChanged()
+    {
+        if (_settings.ThemeMode == ThemeMode.System) Dispatcher.Invoke(ApplyTheme);
+    }
+
+    private void ApplyTheme()
+    {
+        bool light = _settings.ThemeMode switch
+        {
+            ThemeMode.Light => true,
+            ThemeMode.Dark => false,
+            _ => _theme.IsLightTheme,
+        };
+
+        SetBrush("BarBackgroundBrush", "#E61F1F1F", "#E6F3F3F3", light);
+        SetBrush("BarBorderBrush", "#26FFFFFF", "#26000000", light);
+        SetBrush("TitleForegroundBrush", "#FFFFFFFF", "#FF1F1F1F", light);
+        SetBrush("ArtistForegroundBrush", "#9EFFFFFF", "#9E1F1F1F", light);
+        SetBrush("ArtworkPlaceholderBrush", "#22FFFFFF", "#22000000", light);
+        SetBrush("TransportForegroundBrush", "#F2FFFFFF", "#F21F1F1F", light);
+        SetBrush("TransportHoverBrush", "#28FFFFFF", "#28000000", light);
+        SetBrush("TransportPressedBrush", "#40FFFFFF", "#40000000", light);
+
+        // The placeholder brush may be showing right now; refresh it in place.
+        if (_current?.Artwork is null) ArtHost.Background = (Brush)FindResource("ArtworkPlaceholderBrush");
+    }
+
+    private void SetBrush(string key, string darkHex, string lightHex, bool light)
+    {
+        var color = (Color)ColorConverter.ConvertFromString(light ? lightHex : darkHex)!;
+        Resources[key] = new SolidColorBrush(color);
     }
 
     private void Draggable_Click(object sender, RoutedEventArgs e)
@@ -198,10 +329,55 @@ public partial class MainWindow : Window, IDisposable
 
     private void ExitItem_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 
+    // ----- ITrayHost: lets the tray icon's menu drive the same state as this menu -----
+
+    bool ITrayHost.IsAboveTaskbar => _settings.Position == BarPosition.AboveTaskbar;
+    bool ITrayHost.IsOnTaskbar => _settings.Position == BarPosition.OnTaskbar;
+    bool ITrayHost.Draggable => _settings.Draggable;
+    bool ITrayHost.StartupEnabled => StartupManager.IsEnabled();
+
+    void ITrayHost.SetPositionAboveTaskbar() => SetPosition(BarPosition.AboveTaskbar);
+    void ITrayHost.SetPositionOnTaskbar() => SetPosition(BarPosition.OnTaskbar);
+
+    void ITrayHost.ToggleDraggable()
+    {
+        _settings.Draggable = !_settings.Draggable;
+        _settings.Save();
+        DraggableItem.IsChecked = _settings.Draggable;
+        UpdateDragCursor();
+    }
+
+    void ITrayHost.ToggleStartup()
+    {
+        try
+        {
+            StartupManager.SetEnabled(!StartupManager.IsEnabled());
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"MiniPlayer: startup toggle failed: {ex}");
+        }
+        StartupItem.IsChecked = StartupManager.IsEnabled();
+    }
+
+    void ITrayHost.ResetPosition()
+    {
+        _settings.Position = BarPosition.AboveTaskbar;
+        _settings.MonitorId = null;
+        _settings.Save();
+        _tracker.MonitorId = null;
+        _tracker.Apply(BarPosition.AboveTaskbar, null);
+        SyncPositionMenu();
+    }
+
+    void ITrayHost.ExitApp() => Application.Current.Shutdown();
+
     public void Dispose()
     {
         _media.Changed -= OnMediaChanged;
+        _theme.Changed -= OnSystemThemeChanged;
         _media.Dispose();
         _tracker.Dispose();
+        _theme.Dispose();
     }
 }

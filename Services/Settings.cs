@@ -16,6 +16,14 @@ public enum BarPosition
     Custom,
 }
 
+public enum ThemeMode
+{
+    /// <summary>Follow the Windows taskbar's light/dark setting (default).</summary>
+    System,
+    Light,
+    Dark,
+}
+
 /// <summary>User preferences, persisted to <c>%APPDATA%\WindowsMiniPlayer\settings.json</c>.</summary>
 public sealed class Settings
 {
@@ -36,6 +44,15 @@ public sealed class Settings
     /// <summary>Last dragged location, in physical screen pixels. Only meaningful when <see cref="Position"/> is Custom.</summary>
     public int CustomX { get; set; }
     public int CustomY { get; set; }
+
+    /// <summary>Bar size in DIPs. Defaults match the "Default" size preset.</summary>
+    public double BarWidth { get; set; } = 300;
+    public double BarHeight { get; set; } = 44;
+
+    public ThemeMode ThemeMode { get; set; } = ThemeMode.System;
+
+    /// <summary>Monitor device name to dock to (from <c>MONITORINFOEX.szDevice</c>), or null for the primary.</summary>
+    public string? MonitorId { get; set; }
 
     public static Settings Load()
     {

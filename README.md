@@ -33,6 +33,20 @@ Menu choices persist to `%APPDATA%\WindowsMiniPlayer\settings.json`
 (position mode, draggable on/off, last dragged coordinates). Delete the file to
 reset to defaults.
 
+**"Start with Windows" writes the *current* exe's path** to the registry. If you
+run it straight from `bin\Debug\...` or `bin\Release\...`, that path shifts
+whenever the target framework/RID changes (as it did once already) and the
+autostart entry silently points at a stale, frozen build. To avoid that, publish
+a copy to a stable folder outside the build tree once, and re-run this after any
+update you want reflected at next login:
+
+```powershell
+dotnet publish -c Release -o "$env:LOCALAPPDATA\WindowsMiniPlayer"
+```
+
+Then toggle **Start with Windows** off/on from that copy so the registry entry
+points at it.
+
 ## Privacy
 
 Runs entirely locally. It reads the current media-session metadata through the
